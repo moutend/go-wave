@@ -12,11 +12,3 @@ test:
 deployment:
   release:
     tag: /v[0-9]+\.[0-9]+\.[0-9]+/
-    commands:
-    - go get github.com/tcnksm/ghr
-    - go get github.com/go-ole/go-ole
-    - mkdir bin
-    - make clean
-    - make VERSION=$CIRCLE_TAG
-    - rm -rf bin/.gitkeep
-    - ghr -t $GITHUB_TOKEN -u $CIRCLE_PROJECT_USERNAME -r $CIRCLE_PROJECT_REPONAME --replace $CIRCLE_TAG bin/
