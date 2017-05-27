@@ -9,20 +9,25 @@ import (
 
 func TestBytes(t *testing.T) {
 	var audio *WAVE
-	var file []byte
+	var expectedBytes []byte
 	var err error
 
 	if audio, err = OpenFile("./testdata/sawtooth.wav"); err != nil {
 		t.Fatal(err)
 	}
-	if file, err = ioutil.ReadFile("./testdata/sawtooth.wav"); err != nil {
+	if expectedBytes, err = ioutil.ReadFile("./testdata/sawtooth.wav"); err != nil {
 		t.Fatal(err)
 	}
-	actual := audio.Bytes()
+	actualBytes := audio.Bytes()
 
-	for i, b := range file {
-		if b != actual[i] {
-			t.Errorf("[%v] expected: %v actual: %v\n", i, b, actual[i])
+	sizeOfExpectedBytes := len(expectedBytes)
+	sizeOfActualBytes := len(actualBytes)
+	if sizeOfExpectedBytes != sizeOfActualBytes {
+		t.Fatalf("expected: %d actual: %d", sizeOfExpectedBytes, sizeOfActualBytes)
+	}
+	for i, b := range expectedBytes {
+		if b != actualBytes[i] {
+			t.Errorf("[%v] expected: %v actual: %v\n", i, b, actualBytes[i])
 		}
 	}
 	return
