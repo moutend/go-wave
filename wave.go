@@ -139,6 +139,13 @@ func OpenFile(path string) (audio *WAVE, err error) {
 
 func New(samplesPerSec uint32, bitsPerSample, channels uint16) (audio *WAVE, err error) {
 	audio = &WAVE{}
+
+	if bitsPerSample > 16 {
+		audio.FormatTag = WAVE_FORMAT_EXTENSIBLE
+	} else {
+		audio.FormatTag = WAVE_FORMAT_PCM
+	}
+
 	audio.SamplesPerSec = samplesPerSec
 	audio.Channels = channels
 	audio.BitsPerSample = bitsPerSample

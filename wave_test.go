@@ -7,28 +7,21 @@ import (
 	"testing"
 )
 
-func TestBytes(t *testing.T) {
-	var audio *WAVE
-	var expectedBytes []byte
+func TestNew(t *testing.T) {
+	var a1, a2 *WAVE
 	var err error
 
-	if audio, err = OpenFile("./testdata/sawtooth.wav"); err != nil {
+	if a1, err = New(44100, 16, 2); err != nil {
 		t.Fatal(err)
 	}
-	if expectedBytes, err = ioutil.ReadFile("./testdata/sawtooth.wav"); err != nil {
+	if a1.FormatTag != WAVE_FORMAT_PCM {
+		t.Fatalf("FormatTag should be %d but got %d", WAVE_FORMAT_PCM, a1.FormatTag)
+	}
+	if a2, err = New(96000, 32, 2); err != nil {
 		t.Fatal(err)
 	}
-	actualBytes := audio.Bytes()
-
-	sizeOfExpectedBytes := len(expectedBytes)
-	sizeOfActualBytes := len(actualBytes)
-	if sizeOfExpectedBytes != sizeOfActualBytes {
-		t.Fatalf("expected: %d actual: %d", sizeOfExpectedBytes, sizeOfActualBytes)
-	}
-	for i, b := range expectedBytes {
-		if b != actualBytes[i] {
-			t.Errorf("[%v] expected: %v actual: %v\n", i, b, actualBytes[i])
-		}
+	if a2.FormatTag != WAVE_FORMAT_EXTENSIBLE {
+		t.Fatalf("FormatTag should be %d but got %d", WAVE_FORMAT_EXTENSIBLE, a1.FormatTag)
 	}
 	return
 }
@@ -53,13 +46,77 @@ func TestOpenFile(t *testing.T) {
 				if audio.Channels != channels {
 					t.Errorf("expected: %v actual: %v\n (%v)", channels, audio.Channels, filename)
 				}
+				if bits == 16 {
+					if audio.FormatTag != WAVE_FORMAT_PCM {
+						t.Fatalf("format tag should be %d but got %d (%s)", WAVE_FORMAT_PCM, audio.FormatTag, filename)
+					}
+				}
+				if bits == 24 || bits == 32 {
+					if audio.FormatTag != WAVE_FORMAT_EXTENSIBLE {
+						t.Fatalf("format tag should be %d (%s)", WAVE_FORMAT_EXTENSIBLE, filename)
+					}
+				}
 			}
 		}
 	}
 	return
 }
 
-func TestRead(t *testing.T) {
+func TestBytes_16bit(t *testing.T) {
+	var audio *WAVE
+	var actualBytes, expectedBytes []byte
+	var err error
+
+	if audio, err = OpenFile("./testdata/sawtooth.wav"); err != nil {
+		t.Fatal(err)
+	}
+	if expectedBytes, err = ioutil.ReadFile("./testdata/sawtooth.wav"); err != nil {
+		t.Fatal(err)
+	}
+
+	actualBytes = audio.Bytes()
+	sizeOfExpectedBytes := len(expectedBytes)
+	sizeOfActualBytes := len(actualBytes)
+
+	if sizeOfExpectedBytes != sizeOfActualBytes {
+		t.Fatalf("expected: %d actual: %d", sizeOfExpectedBytes, sizeOfActualBytes)
+	}
+	for i, b := range expectedBytes {
+		if b != actualBytes[i] {
+			t.Fatalf("[%v] expected: %v actual: %v\n", i, b, actualBytes[i])
+		}
+	}
+	return
+}
+
+func TestBytes_32bit(t *testing.T) {
+	var audio *WAVE
+	var actualBytes, expectedBytes []byte
+	var err error
+
+	if audio, err = OpenFile("./testdata/sine.wav"); err != nil {
+		t.Fatal(err)
+	}
+	if expectedBytes, err = ioutil.ReadFile("./testdata/sine.wav"); err != nil {
+		t.Fatal(err)
+	}
+
+	actualBytes = audio.Bytes()
+	sizeOfExpectedBytes := len(expectedBytes)
+	sizeOfActualBytes := len(actualBytes)
+
+	if sizeOfExpectedBytes != sizeOfActualBytes {
+		t.Fatalf("expected: %d actual: %d", sizeOfExpectedBytes, sizeOfActualBytes)
+	}
+	for i, b := range expectedBytes {
+		if b != actualBytes[i] {
+			t.Fatalf("[%v] expected: %v actual: %v\n", i, b, actualBytes[i])
+		}
+	}
+	return
+}
+
+func TestRead_16bit(t *testing.T) {
 	var audio *WAVE
 	var rawdata []byte
 	var buf []byte
@@ -85,16 +142,59 @@ func TestRead(t *testing.T) {
 	return
 }
 
-func TestWrite(t *testing.T) {
+func TestRead_32bit(t *testing.T) {
+	var audio *WAVE
+	var rawdata []byte
+	var buf []byte
+	var err error
+
+	if audio, err = OpenFile("./testdata/sine.wav"); err != nil {
+		t.Fatal(err)
+	}
+	if rawdata, err = ioutil.ReadFile("./testdata/sine.raw"); err != nil {
+		t.Fatal(err)
+	}
+	if buf, err = ioutil.ReadAll(audio); err != nil {
+		t.Fatal(err)
+	}
+
+	size := len(rawdata)
+
+	for i := 0; i < size; i++ {
+		if buf[i] != rawdata[i] {
+			t.Fatalf("[%v] expected: %v actual: %v", i, rawdata[i], buf[i])
+		}
+	}
+	return
+}
+
+func TestWrite_16bit(t *testing.T) {
 	var n int64
 	var err error
 
 	src, _ := OpenFile("./testdata/sawtooth.wav")
 	dest, _ := New(src.SamplesPerSec, src.BitsPerSample, src.Channels)
+
 	if n, err = io.Copy(dest, src); err != nil {
 		t.Fatal(err)
 	}
-	if n != int64(dest.DataSize) {
+	if n != int64(src.DataSize) {
+		t.Errorf("expect: %v actual: %v", n, dest.DataSize)
+	}
+	return
+}
+
+func TestWrite_32bit(t *testing.T) {
+	var n int64
+	var err error
+
+	src, _ := OpenFile("./testdata/sine.wav")
+	dest, _ := New(src.SamplesPerSec, src.BitsPerSample, src.Channels)
+
+	if n, err = io.Copy(dest, src); err != nil {
+		t.Fatal(err)
+	}
+	if n != int64(src.DataSize) {
 		t.Errorf("expect: %v actual: %v", n, dest.DataSize)
 	}
 	return
