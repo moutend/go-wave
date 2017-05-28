@@ -14,6 +14,14 @@ const (
 	WAVE_FORMAT_EXTENSIBLE = 0xFFFE
 )
 
+type UnknownFormatTagError struct {
+	FormatTag uint16
+}
+
+func (e *UnknownFormatTagError) Error() string {
+	return fmt.Sprintf("unknown format tag: %d", e.FormatTag)
+}
+
 type WAVE struct {
 	FormatTag      uint16
 	Channels       uint16
@@ -64,7 +72,7 @@ func (v *WAVE) Bytes() []byte {
 	if v.FormatTag == WAVE_FORMAT_PCM {
 		binary.Write(buf, binary.LittleEndian, uint32(16))
 	} else if v.FormatTag == WAVE_FORMAT_EXTENSIBLE {
-		binary.Write(buf, binary.LittleEndian, uint32(60))
+		binary.Write(buf, binary.LittleEndian, uint32(40))
 	}
 	binary.Write(buf, binary.LittleEndian, v.FormatTag)
 	binary.Write(buf, binary.LittleEndian, v.Channels)
@@ -73,17 +81,15 @@ func (v *WAVE) Bytes() []byte {
 	binary.Write(buf, binary.LittleEndian, v.BlockAlign)
 	binary.Write(buf, binary.LittleEndian, v.BitsPerSample)
 	if v.FormatTag == WAVE_FORMAT_EXTENSIBLE {
-		fmt.Println("hoge")
-		binary.Write(buf, binary.LittleEndian, uint16(22))      // cbSize
-		binary.Write(buf, binary.LittleEndian, uint16(22))      // cbSize
-		binary.Write(buf, binary.LittleEndian, v.BitsPerSample) // validBitsPerSample
-		binary.Write(buf, binary.LittleEndian, uint16(0))       // samplesPerBlock
-		binary.Write(buf, binary.LittleEndian, uint16(0))       // reserved
-		binary.Write(buf, binary.LittleEndian, v.Channels)      // channelMask
+		binary.Write(buf, binary.LittleEndian, uint16(22))                         // cbSize
+		binary.Write(buf, binary.LittleEndian, v.BitsPerSample)                    // validBitsPerSample
+		binary.Write(buf, binary.LittleEndian, uint32(getChannelMask(v.Channels))) // channelMask
+		//binary.Write(buf, binary.LittleEndian, uint16(0))            // reserved
 		guid := [16]byte{0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71}
 		binary.Write(buf, binary.BigEndian, guid)
-		binary.Write(buf, binary.BigEndian, []byte("fact"))
-		binary.Write(buf, binary.LittleEndian, uint32(4))
+		binary.Write(buf, binary.BigEndian, []byte("fact"))                             // fact chunk is an optional chunk
+		binary.Write(buf, binary.LittleEndian, uint32(4))                               // 4 bytes
+		binary.Write(buf, binary.LittleEndian, uint32(v.DataSize/uint32(v.BlockAlign))) // zero padding
 	}
 	binary.Write(buf, binary.BigEndian, []byte("data"))
 	binary.Write(buf, binary.LittleEndian, v.DataSize)
@@ -104,7 +110,7 @@ func OpenFile(path string) (audio *WAVE, err error) {
 
 	binary.Read(io.NewSectionReader(reader, 20, 2), binary.LittleEndian, &audio.FormatTag)
 	if !(audio.FormatTag == WAVE_FORMAT_PCM || audio.FormatTag == WAVE_FORMAT_EXTENSIBLE) {
-		err = fmt.Errorf("UnknownformatError")
+		err = &UnknownFormatTagError{audio.FormatTag}
 		return
 	}
 
@@ -139,5 +145,20 @@ func New(samplesPerSec uint32, bitsPerSample, channels uint16) (audio *WAVE, err
 	audio.BlockAlign = audio.Channels * audio.BitsPerSample / 8
 	audio.AvgBytesPerSec = audio.SamplesPerSec * uint32(audio.BlockAlign)
 	audio.RawData = []byte{}
+	return
+}
+
+func getChannelMask(c uint16) (mask uint32) {
+	if c == 1 {
+		mask = 0x4
+	} else if c == 2 {
+		mask = 0x3 //
+	} else if c == 4 {
+		mask = 0x33
+	} else if c == 6 {
+		mask = 0x3f
+	} else if c == 8 {
+		mask = 0x63f
+	}
 	return
 }
